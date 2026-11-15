@@ -44,3 +44,5 @@ gTTS>=2.5.4
 SpeechRecognition>=3.14.0
 pydub>=0.25.1
 langdetect>=1.0.9
+
+openpyxl>=3.1.5
