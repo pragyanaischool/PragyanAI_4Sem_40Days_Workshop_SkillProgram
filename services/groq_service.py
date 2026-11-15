@@ -25,7 +25,7 @@ from groq import Groq
 # CONFIGURATION
 # ---------------------------------------------------------
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 DEFAULT_TEMPERATURE = 0.3
 
