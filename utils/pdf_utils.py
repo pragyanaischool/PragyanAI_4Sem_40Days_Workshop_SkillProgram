@@ -25,7 +25,7 @@ Required project structure:
     services/page_assistant.py
 """
 
-import html
+import json
 import streamlit as st
 import fitz
 
@@ -474,20 +474,17 @@ def _render_audio_player(
     language="English"
 ):
     """
-    Play AI-generated explanation using browser
-    speechSynthesis.
+    Play AI-generated explanation using browser speechSynthesis.
 
     Note:
         Audio is played by the browser.
         This does not generate a downloadable MP3.
     """
 
-    if not text or not text.strip():
-
+    if not text or not str(text).strip():
         st.warning(
             "No explanation is available for audio playback."
         )
-
         return
 
     voice_language = LANGUAGE_CODES.get(
@@ -495,14 +492,14 @@ def _render_audio_player(
         "en-IN"
     )
 
-    safe_text = html.escape(
-        text,
-        quote=True
+    # Safely serialize Python strings for JavaScript.
+    safe_text = json.dumps(
+        str(text),
+        ensure_ascii=False
     )
-
-    safe_language = html.escape(
+    safe_language = json.dumps(
         voice_language,
-        quote=True
+        ensure_ascii=False
     )
 
     component_html = f"""
@@ -577,33 +574,25 @@ def _render_audio_player(
     </div>
 
     <script>
+        const textToSpeak = {safe_text};
+        const selectedLanguage = {safe_language};
 
-        const textToSpeak = "{safe_text}";
-        const selectedLanguage = "{safe_language}";
-
-        const statusElement =
-            document.getElementById("status");
+        const statusElement = document.getElementById("status");
 
         let speechUtterance = null;
 
-        function stopSpeech() {
-
-            if ("speechSynthesis" in window) {
+        function stopSpeech() {{
+            if ("speechSynthesis" in window) {{
                 window.speechSynthesis.cancel();
-            }
+            }}
+        }}
 
-        }
-
-        function playSpeech() {
-
-            if (!("speechSynthesis" in window)) {
-
+        function playSpeech() {{
+            if (!("speechSynthesis" in window)) {{
                 statusElement.innerText =
                     "Your browser does not support speech synthesis.";
-
                 return;
-
-            }
+            }}
 
             stopSpeech();
 
@@ -611,71 +600,49 @@ def _render_audio_player(
                 new SpeechSynthesisUtterance(textToSpeak);
 
             speechUtterance.lang = selectedLanguage;
-
             speechUtterance.rate = 0.9;
-
             speechUtterance.pitch = 1;
 
-            speechUtterance.onstart = function() {
+            speechUtterance.onstart = function() {{
+                statusElement.innerText = "Playing audio...";
+            }};
 
-                statusElement.innerText =
-                    "Playing audio...";
+            speechUtterance.onend = function() {{
+                statusElement.innerText = "Audio completed.";
+            }};
 
-            };
-
-            speechUtterance.onend = function() {
-
-                statusElement.innerText =
-                    "Audio completed.";
-
-            };
-
-            speechUtterance.onerror = function(event) {
-
+            speechUtterance.onerror = function(event) {{
                 statusElement.innerText =
                     "Audio error: " + event.error;
+            }};
 
-            };
-
-            window.speechSynthesis.speak(
-                speechUtterance
-            );
-
-        }
+            window.speechSynthesis.speak(speechUtterance);
+        }}
 
         document.getElementById("play")
             .addEventListener("click", playSpeech);
 
         document.getElementById("pause")
-            .addEventListener("click", function() {
-
-                window.speechSynthesis.pause();
-
-                statusElement.innerText =
-                    "Audio paused.";
-
-            });
+            .addEventListener("click", function() {{
+                if ("speechSynthesis" in window) {{
+                    window.speechSynthesis.pause();
+                    statusElement.innerText = "Audio paused.";
+                }}
+            }});
 
         document.getElementById("resume")
-            .addEventListener("click", function() {
-
-                window.speechSynthesis.resume();
-
-                statusElement.innerText =
-                    "Audio resumed.";
-
-            });
+            .addEventListener("click", function() {{
+                if ("speechSynthesis" in window) {{
+                    window.speechSynthesis.resume();
+                    statusElement.innerText = "Audio resumed.";
+                }}
+            }});
 
         document.getElementById("stop")
-            .addEventListener("click", function() {
-
+            .addEventListener("click", function() {{
                 stopSpeech();
-
-                statusElement.innerText =
-                    "Audio stopped.";
-
-            });
-
+                statusElement.innerText = "Audio stopped.";
+            }});
     </script>
     """
 
