@@ -1,18 +1,60 @@
 
-import base64
+"""
+PragyanAI - Interactive PDF Flipbook
+=================================================
+
+Features:
+1. View PDF page by page.
+2. Previous / Next page navigation.
+3. Zoom in and zoom out.
+4. Download complete PDF.
+5. Extract selected page text.
+6. Translate selected page into multiple languages.
+7. Generate AI explanation of selected page.
+8. Browser-based Audio Book playback.
+
+Dependencies:
+    streamlit
+    PyMuPDF
+
+Optional AI dependency:
+    groq
+
+Required project structure:
+    utils/pdf_utils.py
+    services/page_assistant.py
+"""
+
 import html
 import streamlit as st
-import fitz  # PyMuPDF
-
-from services.page_assistant import (
-    explain_page,
-    translate_page_text,
-)
+import fitz
 
 
-# ---------------------------------------------------------
-# SUPPORTED LANGUAGES
-# ---------------------------------------------------------
+# =========================================================
+# 1. OPTIONAL PAGE ASSISTANT IMPORT
+# =========================================================
+
+try:
+    from services.page_assistant import (
+        explain_page,
+        translate_page_text
+    )
+
+    PAGE_ASSISTANT_AVAILABLE = True
+    PAGE_ASSISTANT_ERROR = None
+
+except Exception as import_error:
+
+    PAGE_ASSISTANT_AVAILABLE = False
+    PAGE_ASSISTANT_ERROR = str(import_error)
+
+    explain_page = None
+    translate_page_text = None
+
+
+# =========================================================
+# 2. LANGUAGE CONFIGURATION
+# =========================================================
 
 LANGUAGES = {
     "English": "English",
@@ -31,17 +73,88 @@ LANGUAGES = {
     "German": "German",
     "Arabic": "Arabic",
     "Japanese": "Japanese",
-    "Chinese (Mandarin)": "Chinese (Mandarin)",
+    "Chinese (Mandarin)": "Chinese (Mandarin)"
 }
 
 
-# ---------------------------------------------------------
-# PDF TEXT EXTRACTION
-# ---------------------------------------------------------
+LANGUAGE_CODES = {
+    "English": "en-IN",
+    "Hindi": "hi-IN",
+    "Kannada": "kn-IN",
+    "Telugu": "te-IN",
+    "Tamil": "ta-IN",
+    "Malayalam": "ml-IN",
+    "Marathi": "mr-IN",
+    "Bengali": "bn-IN",
+    "Gujarati": "gu-IN",
+    "Punjabi": "pa-IN",
+    "Urdu": "ur-PK",
+    "Spanish": "es-ES",
+    "French": "fr-FR",
+    "German": "de-DE",
+    "Arabic": "ar-SA",
+    "Japanese": "ja-JP",
+    "Chinese (Mandarin)": "zh-CN"
+}
+
+
+# =========================================================
+# 3. PDF VALIDATION
+# =========================================================
+
+def validate_pdf(pdf_bytes):
+    """
+    Validate PDF bytes.
+
+    Returns:
+        int: Number of pages.
+    """
+
+    if not pdf_bytes:
+        raise ValueError(
+            "PDF file is empty or not available."
+        )
+
+    try:
+
+        document = fitz.open(
+            stream=pdf_bytes,
+            filetype="pdf"
+        )
+
+        if document.is_encrypted:
+            raise ValueError(
+                "Password-protected PDFs are not supported."
+            )
+
+        total_pages = len(document)
+
+        document.close()
+
+        if total_pages == 0:
+            raise ValueError(
+                "PDF does not contain any pages."
+            )
+
+        return total_pages
+
+    except Exception as error:
+
+        raise ValueError(
+            f"Unable to read PDF: {error}"
+        ) from error
+
+
+# =========================================================
+# 4. EXTRACT TEXT FROM ALL PDF PAGES
+# =========================================================
 
 def pdf_to_text(pdf_bytes):
     """
     Extract text from all pages of a PDF.
+
+    Returns:
+        list: Page number and extracted text.
     """
 
     document = fitz.open(
@@ -51,24 +164,38 @@ def pdf_to_text(pdf_bytes):
 
     pages = []
 
-    for page_number, page in enumerate(document):
-        page_text = page.get_text("text")
+    try:
 
-        pages.append({
-            "page_number": page_number + 1,
-            "text": page_text
-        })
+        for page_number, page in enumerate(document):
 
-    document.close()
+            page_text = page.get_text("text")
+
+            pages.append({
+                "page_number": page_number + 1,
+                "text": page_text.strip()
+            })
+
+    finally:
+
+        document.close()
 
     return pages
 
 
+# =========================================================
+# 5. EXTRACT SELECTED PAGE TEXT
+# =========================================================
+
 def extract_page_text(pdf_bytes, page_number):
     """
-    Extract text from a selected PDF page.
+    Extract text from one selected PDF page.
 
-    page_number is zero-based.
+    Args:
+        pdf_bytes: PDF file bytes.
+        page_number: Zero-based page index.
+
+    Returns:
+        str: Extracted page text.
     """
 
     document = fitz.open(
@@ -76,28 +203,41 @@ def extract_page_text(pdf_bytes, page_number):
         filetype="pdf"
     )
 
-    if page_number < 0 or page_number >= len(document):
+    try:
+
+        if page_number < 0 or page_number >= len(document):
+            return ""
+
+        page = document.load_page(
+            page_number
+        )
+
+        return page.get_text("text").strip()
+
+    finally:
+
         document.close()
-        return ""
-
-    page = document.load_page(page_number)
-
-    text = page.get_text("text")
-
-    document.close()
-
-    return text.strip()
 
 
-# ---------------------------------------------------------
-# PDF PAGE RENDERING
-# ---------------------------------------------------------
+# =========================================================
+# 6. RENDER SELECTED PDF PAGE
+# =========================================================
 
-def render_pdf_page(pdf_bytes, page_number, zoom=1.5):
+def render_pdf_page(
+    pdf_bytes,
+    page_number,
+    zoom=1.5
+):
     """
-    Render one PDF page as a PNG image.
+    Convert selected PDF page into PNG image.
 
-    page_number is zero-based.
+    Args:
+        pdf_bytes: PDF bytes.
+        page_number: Zero-based page index.
+        zoom: Rendering scale.
+
+    Returns:
+        bytes: PNG image bytes.
     """
 
     document = fitz.open(
@@ -105,25 +245,35 @@ def render_pdf_page(pdf_bytes, page_number, zoom=1.5):
         filetype="pdf"
     )
 
-    if page_number < 0 or page_number >= len(document):
+    try:
+
+        if page_number < 0 or page_number >= len(document):
+            return None
+
+        page = document.load_page(
+            page_number
+        )
+
+        matrix = fitz.Matrix(
+            zoom,
+            zoom
+        )
+
+        pixmap = page.get_pixmap(
+            matrix=matrix,
+            alpha=False
+        )
+
+        return pixmap.tobytes("png")
+
+    finally:
+
         document.close()
-        return None
 
-    page = document.load_page(page_number)
 
-    matrix = fitz.Matrix(zoom, zoom)
-
-    pixmap = page.get_pixmap(
-        matrix=matrix,
-        alpha=False
-    )
-
-    image_bytes = pixmap.tobytes("png")
-
-    document.close()
-
-    return image_bytes
-
+# =========================================================
+# 7. DISPLAY SELECTED PAGE
+# =========================================================
 
 def _render_pdf_pages(
     pdf_bytes,
@@ -131,7 +281,7 @@ def _render_pdf_pages(
     zoom
 ):
     """
-    Display the currently selected PDF page.
+    Display selected PDF page.
     """
 
     image_bytes = render_pdf_page(
@@ -141,7 +291,11 @@ def _render_pdf_pages(
     )
 
     if image_bytes is None:
-        st.error("Unable to render the selected page.")
+
+        st.error(
+            "Unable to render the selected PDF page."
+        )
+
         return
 
     st.image(
@@ -151,222 +305,65 @@ def _render_pdf_pages(
     )
 
 
-# ---------------------------------------------------------
-# BROWSER TEXT-TO-SPEECH
-# ---------------------------------------------------------
+# =========================================================
+# 8. DOWNLOAD PDF
+# =========================================================
 
-def _render_audio_player(
-    text,
-    language="English"
-):
+def _render_download_pdf(pdf_bytes):
     """
-    Play generated text using browser-native speech synthesis.
-
-    Audio is generated by the browser, not by a cloud TTS service.
+    Display PDF download option.
     """
 
-    if not text or not text.strip():
-        st.warning("No text is available for audio playback.")
-        return
-
-    language_codes = {
-        "English": "en-IN",
-        "Hindi": "hi-IN",
-        "Kannada": "kn-IN",
-        "Telugu": "te-IN",
-        "Tamil": "ta-IN",
-        "Malayalam": "ml-IN",
-        "Marathi": "mr-IN",
-        "Bengali": "bn-IN",
-        "Gujarati": "gu-IN",
-        "Punjabi": "pa-IN",
-        "Urdu": "ur-PK",
-        "Spanish": "es-ES",
-        "French": "fr-FR",
-        "German": "de-DE",
-        "Arabic": "ar-SA",
-        "Japanese": "ja-JP",
-        "Chinese (Mandarin)": "zh-CN",
-    }
-
-    voice_language = language_codes.get(
-        language,
-        "en-IN"
+    st.subheader(
+        "Download Complete Brochure"
     )
 
-    escaped_text = html.escape(
-        text,
-        quote=True
+    st.write(
+        "Download the complete PragyanAI AI Engineering "
+        "Program brochure for offline reading."
     )
 
-    component_html = f"""
-    <div style="
-        padding: 16px;
-        border: 1px solid #dddddd;
-        border-radius: 12px;
-        background-color: #f8f9fa;
-        font-family: Arial, sans-serif;
-    ">
-
-        <div style="
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: #222;
-        ">
-            Audio Book Player
-        </div>
-
-        <div style="
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        ">
-
-            <button id="playBtn" style="
-                padding: 10px 18px;
-                background: #2563eb;
-                color: white;
-                border: none;
-                border-radius: 7px;
-                cursor: pointer;
-            ">
-                ▶ Play
-            </button>
-
-            <button id="pauseBtn" style="
-                padding: 10px 18px;
-                background: #64748b;
-                color: white;
-                border: none;
-                border-radius: 7px;
-                cursor: pointer;
-            ">
-                ⏸ Pause
-            </button>
-
-            <button id="resumeBtn" style="
-                padding: 10px 18px;
-                background: #16a34a;
-                color: white;
-                border: none;
-                border-radius: 7px;
-                cursor: pointer;
-            ">
-                ▶ Resume
-            </button>
-
-            <button id="stopBtn" style="
-                padding: 10px 18px;
-                background: #dc2626;
-                color: white;
-                border: none;
-                border-radius: 7px;
-                cursor: pointer;
-            ">
-                ■ Stop
-            </button>
-
-        </div>
-
-        <p id="audioStatus" style="
-            margin-top: 12px;
-            color: #555;
-            font-size: 13px;
-        ">
-            Ready to play.
-        </p>
-
-    </div>
-
-    <script>
-        const speechText = "{escaped_text}";
-        const speechLanguage = "{voice_language}";
-
-        const playBtn = document.getElementById("playBtn");
-        const pauseBtn = document.getElementById("pauseBtn");
-        const resumeBtn = document.getElementById("resumeBtn");
-        const stopBtn = document.getElementById("stopBtn");
-        const status = document.getElementById("audioStatus");
-
-        let utterance = null;
-
-        function playSpeech() {
-
-            if (!("speechSynthesis" in window)) {
-                status.innerText =
-                    "Speech synthesis is not supported by this browser.";
-                return;
-            }
-
-            window.speechSynthesis.cancel();
-
-            utterance = new SpeechSynthesisUtterance(
-                speechText
-            );
-
-            utterance.lang = speechLanguage;
-            utterance.rate = 0.9;
-            utterance.pitch = 1;
-
-            utterance.onstart = function() {
-                status.innerText = "Playing audio...";
-            };
-
-            utterance.onend = function() {
-                status.innerText = "Audio completed.";
-            };
-
-            utterance.onerror = function(event) {
-                status.innerText =
-                    "Audio error: " + event.error;
-            };
-
-            window.speechSynthesis.speak(
-                utterance
-            );
-        }
-
-        playBtn.addEventListener(
-            "click",
-            playSpeech
-        );
-
-        pauseBtn.addEventListener(
-            "click",
-            function() {
-                window.speechSynthesis.pause();
-                status.innerText = "Audio paused.";
-            }
-        );
-
-        resumeBtn.addEventListener(
-            "click",
-            function() {
-                window.speechSynthesis.resume();
-                status.innerText = "Audio resumed.";
-            }
-        );
-
-        stopBtn.addEventListener(
-            "click",
-            function() {
-                window.speechSynthesis.cancel();
-                status.innerText = "Audio stopped.";
-            }
-        );
-    </script>
-    """
-
-    st.components.v1.html(
-        component_html,
-        height=160,
-        scrolling=False
+    st.download_button(
+        label="⬇ Download PDF Brochure",
+        data=pdf_bytes,
+        file_name="PragyanAI_AI_Engineering_Program.pdf",
+        mime="application/pdf",
+        use_container_width=True,
+        key="download_pragyanai_pdf"
     )
 
 
-# ---------------------------------------------------------
-# SELECTED PAGE: TRANSLATION
-# ---------------------------------------------------------
+# =========================================================
+# 9. CHECK AI ASSISTANT
+# =========================================================
+
+def _check_page_assistant():
+    """
+    Check whether the page assistant is available.
+    """
+
+    if not PAGE_ASSISTANT_AVAILABLE:
+
+        st.error(
+            "AI Page Assistant is not available. "
+            "Please check services/page_assistant.py "
+            "and its dependencies."
+        )
+
+        with st.expander("Technical details"):
+
+            st.code(
+                str(PAGE_ASSISTANT_ERROR)
+            )
+
+        return False
+
+    return True
+
+
+# =========================================================
+# 10. TRANSLATE SELECTED PAGE
+# =========================================================
 
 def _render_translation(
     pdf_bytes,
@@ -374,7 +371,7 @@ def _render_translation(
     language
 ):
     """
-    Extract selected page text and translate it.
+    Extract and translate selected PDF page.
     """
 
     page_text = extract_page_text(
@@ -383,16 +380,20 @@ def _render_translation(
     )
 
     if not page_text:
+
         st.warning(
-            "No extractable text found on this page. "
-            "The page may contain scanned images."
+            "No extractable text was found on this page. "
+            "It may contain scanned images rather than text."
         )
+
         return
 
-    st.subheader("Original Page Text")
+    st.subheader(
+        "Original Page Text"
+    )
 
     st.text_area(
-        "Extracted text",
+        "Extracted content",
         value=page_text,
         height=250,
         key=f"original_text_{page_number}"
@@ -404,23 +405,36 @@ def _render_translation(
         use_container_width=True
     ):
 
-        with st.spinner(
-            f"Translating page into {language}..."
-        ):
+        if not _check_page_assistant():
+            return
 
-            translated_text = translate_page_text(
-                page_text,
-                language
-            )
+        try:
 
-        if translated_text:
-            st.session_state[
-                f"translated_{page_number}_{language}"
-            ] = translated_text
+            with st.spinner(
+                f"Translating into {language}..."
+            ):
 
-        else:
+                translated_text = translate_page_text(
+                    page_text,
+                    language
+                )
+
+            if translated_text:
+
+                st.session_state[
+                    f"translated_{page_number}_{language}"
+                ] = translated_text
+
+            else:
+
+                st.error(
+                    "Translation returned an empty response."
+                )
+
+        except Exception as error:
+
             st.error(
-                "Translation failed. Check the AI service configuration."
+                f"Translation failed: {error}"
             )
 
     translated_key = (
@@ -429,21 +443,252 @@ def _render_translation(
 
     if translated_key in st.session_state:
 
+        st.divider()
+
         st.subheader(
-            f"Translated Text – {language}"
+            f"Translated Content - {language}"
         )
 
         st.text_area(
-            "Translated content",
+            "Translated page",
             value=st.session_state[translated_key],
-            height=300,
+            height=350,
             key=f"display_translation_{page_number}_{language}"
         )
 
+        st.download_button(
+            label="Download Translated Text",
+            data=st.session_state[translated_key],
+            file_name=f"PragyanAI_Page_{page_number + 1}_{language}.txt",
+            mime="text/plain",
+            key=f"download_translation_{page_number}_{language}"
+        )
 
-# ---------------------------------------------------------
-# SELECTED PAGE: AUDIO BOOK
-# ---------------------------------------------------------
+
+# =========================================================
+# 11. BROWSER AUDIO BOOK PLAYER
+# =========================================================
+
+def _render_audio_player(
+    text,
+    language="English"
+):
+    """
+    Play AI-generated explanation using browser
+    speechSynthesis.
+
+    Note:
+        Audio is played by the browser.
+        This does not generate a downloadable MP3.
+    """
+
+    if not text or not text.strip():
+
+        st.warning(
+            "No explanation is available for audio playback."
+        )
+
+        return
+
+    voice_language = LANGUAGE_CODES.get(
+        language,
+        "en-IN"
+    )
+
+    safe_text = html.escape(
+        text,
+        quote=True
+    )
+
+    safe_language = html.escape(
+        voice_language,
+        quote=True
+    )
+
+    component_html = f"""
+    <div style="
+        padding: 18px;
+        border: 1px solid #d9d9d9;
+        border-radius: 12px;
+        background: #f8fafc;
+        font-family: Arial, sans-serif;
+    ">
+
+        <h4 style="
+            margin-top: 0;
+            color: #1e293b;
+        ">
+            PragyanAI Audio Book Player
+        </h4>
+
+        <div style="
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        ">
+
+            <button id="play" style="
+                padding: 10px 18px;
+                border: none;
+                border-radius: 7px;
+                color: white;
+                background: #2563eb;
+                cursor: pointer;
+            ">▶ Play</button>
+
+            <button id="pause" style="
+                padding: 10px 18px;
+                border: none;
+                border-radius: 7px;
+                color: white;
+                background: #64748b;
+                cursor: pointer;
+            ">⏸ Pause</button>
+
+            <button id="resume" style="
+                padding: 10px 18px;
+                border: none;
+                border-radius: 7px;
+                color: white;
+                background: #16a34a;
+                cursor: pointer;
+            ">▶ Resume</button>
+
+            <button id="stop" style="
+                padding: 10px 18px;
+                border: none;
+                border-radius: 7px;
+                color: white;
+                background: #dc2626;
+                cursor: pointer;
+            ">■ Stop</button>
+
+        </div>
+
+        <p id="status" style="
+            margin-bottom: 0;
+            margin-top: 14px;
+            font-size: 13px;
+            color: #475569;
+        ">
+            Ready to play.
+        </p>
+
+    </div>
+
+    <script>
+
+        const textToSpeak = "{safe_text}";
+        const selectedLanguage = "{safe_language}";
+
+        const statusElement =
+            document.getElementById("status");
+
+        let speechUtterance = null;
+
+        function stopSpeech() {
+
+            if ("speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+
+        }
+
+        function playSpeech() {
+
+            if (!("speechSynthesis" in window)) {
+
+                statusElement.innerText =
+                    "Your browser does not support speech synthesis.";
+
+                return;
+
+            }
+
+            stopSpeech();
+
+            speechUtterance =
+                new SpeechSynthesisUtterance(textToSpeak);
+
+            speechUtterance.lang = selectedLanguage;
+
+            speechUtterance.rate = 0.9;
+
+            speechUtterance.pitch = 1;
+
+            speechUtterance.onstart = function() {
+
+                statusElement.innerText =
+                    "Playing audio...";
+
+            };
+
+            speechUtterance.onend = function() {
+
+                statusElement.innerText =
+                    "Audio completed.";
+
+            };
+
+            speechUtterance.onerror = function(event) {
+
+                statusElement.innerText =
+                    "Audio error: " + event.error;
+
+            };
+
+            window.speechSynthesis.speak(
+                speechUtterance
+            );
+
+        }
+
+        document.getElementById("play")
+            .addEventListener("click", playSpeech);
+
+        document.getElementById("pause")
+            .addEventListener("click", function() {
+
+                window.speechSynthesis.pause();
+
+                statusElement.innerText =
+                    "Audio paused.";
+
+            });
+
+        document.getElementById("resume")
+            .addEventListener("click", function() {
+
+                window.speechSynthesis.resume();
+
+                statusElement.innerText =
+                    "Audio resumed.";
+
+            });
+
+        document.getElementById("stop")
+            .addEventListener("click", function() {
+
+                stopSpeech();
+
+                statusElement.innerText =
+                    "Audio stopped.";
+
+            });
+
+    </script>
+    """
+
+    st.components.v1.html(
+        component_html,
+        height=180,
+        scrolling=False
+    )
+
+
+# =========================================================
+# 12. GENERATE AUDIO BOOK EXPLANATION
+# =========================================================
 
 def _render_audio_book(
     pdf_bytes,
@@ -451,8 +696,7 @@ def _render_audio_book(
     language
 ):
     """
-    Generate an explanation of the selected page
-    and provide browser-based audio playback.
+    Generate an AI explanation and display audio player.
     """
 
     page_text = extract_page_text(
@@ -461,14 +705,20 @@ def _render_audio_book(
     )
 
     if not page_text:
+
         st.warning(
-            "No extractable text found on this page. "
-            "Audio explanation cannot be generated from page text."
+            "No extractable text was found on this page."
         )
+
         return
 
     st.markdown(
-        f"### Audio Explanation – Page {page_number + 1}"
+        f"### Audio Explanation - Page {page_number + 1}"
+    )
+
+    st.write(
+        "Generate a simple educational explanation "
+        "of the selected brochure page."
     )
 
     if st.button(
@@ -477,25 +727,36 @@ def _render_audio_book(
         use_container_width=True
     ):
 
-        with st.spinner(
-            "Generating page explanation..."
-        ):
+        if not _check_page_assistant():
+            return
 
-            explanation = explain_page(
-                page_text,
-                language
-            )
+        try:
 
-        if explanation:
+            with st.spinner(
+                "Generating AI explanation..."
+            ):
 
-            st.session_state[
-                f"explanation_{page_number}_{language}"
-            ] = explanation
+                explanation = explain_page(
+                    page_text,
+                    language
+                )
 
-        else:
+            if explanation:
+
+                st.session_state[
+                    f"explanation_{page_number}_{language}"
+                ] = explanation
+
+            else:
+
+                st.error(
+                    "AI returned an empty explanation."
+                )
+
+        except Exception as error:
+
             st.error(
-                "Unable to generate the explanation. "
-                "Check your Groq API configuration."
+                f"Explanation generation failed: {error}"
             )
 
     explanation_key = (
@@ -508,13 +769,32 @@ def _render_audio_book(
             explanation_key
         ]
 
-        st.subheader("Page Explanation")
+        st.divider()
 
-        st.markdown(explanation)
+        st.subheader(
+            "AI Page Explanation"
+        )
+
+        st.markdown(
+            explanation
+        )
+
+        st.download_button(
+            label="Download Explanation",
+            data=explanation,
+            file_name=(
+                f"PragyanAI_Page_{page_number + 1}_"
+                f"{language}_Explanation.txt"
+            ),
+            mime="text/plain",
+            key=f"download_explanation_{page_number}_{language}"
+        )
 
         st.divider()
 
-        st.subheader("Listen to Explanation")
+        st.subheader(
+            "Listen to Explanation"
+        )
 
         _render_audio_player(
             explanation,
@@ -522,81 +802,56 @@ def _render_audio_book(
         )
 
 
-# ---------------------------------------------------------
-# DOWNLOAD PDF
-# ---------------------------------------------------------
-
-def _render_download_pdf(pdf_bytes):
-    """
-    Display the PDF download button.
-    """
-
-    st.subheader("Download Complete Brochure")
-
-    st.write(
-        "Download the complete PragyanAI AI Engineering Program brochure."
-    )
-
-    st.download_button(
-        label="⬇ Download PDF Brochure",
-        data=pdf_bytes,
-        file_name="PragyanAI_AI_Engineering_Program.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
-
-
-# ---------------------------------------------------------
-# FLIPBOOK MAIN FUNCTION
-# ---------------------------------------------------------
+# =========================================================
+# 13. MAIN FLIPBOOK FUNCTION
+# =========================================================
 
 def render_flipbook(pdf_bytes):
     """
-    Main interactive brochure viewer.
+    Main interactive PDF flipbook.
 
-    Features:
-    1. Page-by-page PDF viewer
-    2. Zoom controls
-    3. PDF download
-    4. Selected page text extraction and translation
-    5. Selected page AI explanation and audio playback
+    Menu options:
+        1. View
+        2. Download PDF
+        3. Extract & Translate
+        4. Audio Book
+
+    Args:
+        pdf_bytes: PDF document as bytes.
     """
 
-    if not pdf_bytes:
-        st.error("Brochure PDF is not available.")
-        return
+    # -----------------------------------------------------
+    # Validate PDF
+    # -----------------------------------------------------
 
     try:
-        document = fitz.open(
-            stream=pdf_bytes,
-            filetype="pdf"
+
+        total_pages = validate_pdf(
+            pdf_bytes
         )
-
-        total_pages = len(document)
-
-        document.close()
 
     except Exception as error:
-        st.error(
-            f"Unable to open PDF: {error}"
-        )
-        return
 
-    if total_pages == 0:
-        st.warning("The PDF does not contain any pages.")
+        st.error(
+            f"PDF loading failed: {error}"
+        )
+
         return
 
     # -----------------------------------------------------
-    # SESSION STATE
+    # Initialize session state
     # -----------------------------------------------------
 
     if "flipbook_page" not in st.session_state:
+
         st.session_state.flipbook_page = 0
 
     if "flipbook_zoom" not in st.session_state:
+
         st.session_state.flipbook_zoom = 1.5
 
-    # Keep page number within valid range.
+    # Validate current page state.
+
     st.session_state.flipbook_page = max(
         0,
         min(
@@ -606,25 +861,36 @@ def render_flipbook(pdf_bytes):
     )
 
     # -----------------------------------------------------
-    # FLIPBOOK HEADER
+    # Flipbook header
     # -----------------------------------------------------
 
     st.markdown(
         """
-        <div style="text-align:center; padding: 8px 0 18px 0;">
-            <h2 style="margin-bottom:4px;">
+        <div style="
+            text-align: center;
+            padding: 10px 0 18px 0;
+        ">
+
+            <h2 style="
+                margin-bottom: 5px;
+            ">
                 PragyanAI Program Flipbook
             </h2>
-            <p style="color:gray; margin-top:0;">
-                Explore the brochure page by page.
+
+            <p style="
+                color: gray;
+                margin-top: 0;
+            ">
+                Explore the AI Engineering Program brochure.
             </p>
+
         </div>
         """,
         unsafe_allow_html=True
     )
 
     # -----------------------------------------------------
-    # MAIN OPTIONS
+    # Main menu
     # -----------------------------------------------------
 
     view_tab, download_tab, translate_tab, audio_tab = st.tabs(
@@ -636,35 +902,43 @@ def render_flipbook(pdf_bytes):
         ]
     )
 
-    # -----------------------------------------------------
+    # =====================================================
     # TAB 1: VIEW
-    # -----------------------------------------------------
+    # =====================================================
 
     with view_tab:
 
-        st.markdown("### Browse Brochure")
+        st.subheader(
+            "Browse Program Brochure"
+        )
 
-        col1, col2, col3 = st.columns(
+        # -------------------------------------------------
+        # Page navigation
+        # -------------------------------------------------
+
+        previous_col, page_col, next_col = st.columns(
             [1, 2, 1]
         )
 
-        with col1:
+        with previous_col:
 
             if st.button(
                 "◀ Previous",
                 disabled=(
                     st.session_state.flipbook_page == 0
                 ),
-                use_container_width=True
+                use_container_width=True,
+                key="flipbook_previous"
             ):
 
                 st.session_state.flipbook_page -= 1
+
                 st.rerun()
 
-        with col2:
+        with page_col:
 
             selected_page = st.number_input(
-                "Page Number",
+                "Select Page",
                 min_value=1,
                 max_value=total_pages,
                 value=st.session_state.flipbook_page + 1,
@@ -683,7 +957,7 @@ def render_flipbook(pdf_bytes):
 
                 st.rerun()
 
-        with col3:
+        with next_col:
 
             if st.button(
                 "Next ▶",
@@ -691,10 +965,12 @@ def render_flipbook(pdf_bytes):
                     st.session_state.flipbook_page
                     >= total_pages - 1
                 ),
-                use_container_width=True
+                use_container_width=True,
+                key="flipbook_next"
             ):
 
                 st.session_state.flipbook_page += 1
+
                 st.rerun()
 
         st.caption(
@@ -702,7 +978,16 @@ def render_flipbook(pdf_bytes):
             f"of {total_pages}"
         )
 
+        # -------------------------------------------------
         # Zoom controls
+        # -------------------------------------------------
+
+        st.divider()
+
+        st.subheader(
+            "Zoom Controls"
+        )
+
         zoom_col1, zoom_col2, zoom_col3 = st.columns(
             [1, 2, 1]
         )
@@ -711,7 +996,8 @@ def render_flipbook(pdf_bytes):
 
             if st.button(
                 "− Zoom Out",
-                use_container_width=True
+                use_container_width=True,
+                key="flipbook_zoom_out"
             ):
 
                 st.session_state.flipbook_zoom = max(
@@ -724,7 +1010,7 @@ def render_flipbook(pdf_bytes):
         with zoom_col2:
 
             zoom_value = st.slider(
-                "Zoom",
+                "Zoom Level",
                 min_value=0.6,
                 max_value=2.5,
                 value=float(
@@ -744,7 +1030,8 @@ def render_flipbook(pdf_bytes):
 
             if st.button(
                 "+ Zoom In",
-                use_container_width=True
+                use_container_width=True,
+                key="flipbook_zoom_in"
             ):
 
                 st.session_state.flipbook_zoom = min(
@@ -756,63 +1043,80 @@ def render_flipbook(pdf_bytes):
 
         st.divider()
 
+        # -------------------------------------------------
+        # Render PDF page
+        # -------------------------------------------------
+
         _render_pdf_pages(
-            pdf_bytes,
-            st.session_state.flipbook_page,
-            st.session_state.flipbook_zoom
+            pdf_bytes=pdf_bytes,
+            page_number=st.session_state.flipbook_page,
+            zoom=st.session_state.flipbook_zoom
         )
 
         st.caption(
-            "Use Previous / Next to navigate pages "
-            "and the zoom slider to adjust the display size."
+            "Use Previous / Next to navigate pages. "
+            "Use Zoom Controls to change page size."
         )
 
-    # -----------------------------------------------------
-    # TAB 2: DOWNLOAD
-    # -----------------------------------------------------
+    # =====================================================
+    # TAB 2: DOWNLOAD PDF
+    # =====================================================
 
     with download_tab:
 
-        _render_download_pdf(pdf_bytes)
+        _render_download_pdf(
+            pdf_bytes
+        )
 
-    # -----------------------------------------------------
-    # TAB 3: EXTRACT & TRANSLATE
-    # -----------------------------------------------------
+    # =====================================================
+    # TAB 3: EXTRACT AND TRANSLATE
+    # =====================================================
 
     with translate_tab:
 
-        st.subheader("Extract and Translate Page")
+        st.subheader(
+            "Extract & Translate PDF Page"
+        )
 
         page_for_translation = st.selectbox(
-            "Select PDF Page",
+            "Select Page",
             options=list(range(1, total_pages + 1)),
             index=st.session_state.flipbook_page,
             key="translation_page_selector"
         )
 
         language_for_translation = st.selectbox(
-            "Select Translation Language",
+            "Select Target Language",
             options=list(LANGUAGES.keys()),
             index=0,
             key="translation_language_selector"
         )
 
+        st.divider()
+
         _render_translation(
-            pdf_bytes,
-            page_for_translation - 1,
-            LANGUAGES[language_for_translation]
+            pdf_bytes=pdf_bytes,
+            page_number=page_for_translation - 1,
+            language=LANGUAGES[language_for_translation]
         )
 
-    # -----------------------------------------------------
+    # =====================================================
     # TAB 4: AUDIO BOOK
-    # -----------------------------------------------------
+    # =====================================================
 
     with audio_tab:
 
-        st.subheader("AI Audio Book")
+        st.subheader(
+            "AI Audio Book"
+        )
+
+        st.write(
+            "Listen to an AI-generated explanation "
+            "of each brochure page."
+        )
 
         page_for_audio = st.selectbox(
-            "Select PDF Page",
+            "Select Page",
             options=list(range(1, total_pages + 1)),
             index=st.session_state.flipbook_page,
             key="audio_page_selector"
@@ -825,8 +1129,10 @@ def render_flipbook(pdf_bytes):
             key="audio_language_selector"
         )
 
+        st.divider()
+
         _render_audio_book(
-            pdf_bytes,
-            page_for_audio - 1,
-            LANGUAGES[language_for_audio]
+            pdf_bytes=pdf_bytes,
+            page_number=page_for_audio - 1,
+            language=LANGUAGES[language_for_audio]
         )
