@@ -32,7 +32,7 @@ from groq import Groq
 # 1. CONFIGURATION
 # =================================================
 
-DEFAULT_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_MODEL = "openai/gpt-oss-120b"
 
 DEFAULT_MAX_TOKENS = 4000
 
