@@ -23,7 +23,7 @@ DEFAULT_PDF = ASSETS / "pragyanai_ai_engineering_brochure.pdf"
 DEFAULT_FLYER = ASSETS / "pragyanai_program_flyer.png"
 SYLLABUS_EXCEL = ASSETS / "Syllabus.xlsx"
 UPCOMING_BATCH_EXCEL = ASSETS / "Upcoming_Batch.xlsx"
-PROGRAM_FLOW_IMAGE = ASSETS / "6Moths_ProjectBasedLearning_Online_Program_Flow.png"
+PROGRAM_FLOW_IMAGE = ASSETS / "Program_Flow.png"
 
 LINKEDIN_PROFILE = (
     "https://www.linkedin.com/in/sateesh-ambesange-3020185/"
@@ -42,7 +42,7 @@ DEFAULT_GOOGLE_FORM_URL = (
 )
 
 st.set_page_config(
-    page_title="PragyanAI | AI Engineering Program",
+    page_title="PragyanAI | 6+12 Month AI GenAI Program",
     page_icon="🤖",
     layout="wide"
 )
@@ -109,8 +109,8 @@ def render_google_eoi_form():
 
     st.markdown("### Student Registration")
     st.write(
-        "Register your interest in the PragyanAI 6-Month "
-        "AI Engineering Program. Complete the form below."
+        "Register your interest in the PragyanAI 18-Month AI & GenAI "
+        "Engineering Program. Complete the form below."
     )
 
     embed_url = get_google_form_embed_url()
@@ -198,7 +198,7 @@ def get_program_video_urls():
     configured = get_setting("YOUTUBE_VIDEO_URLS")
     if not configured:
         # Default PragyanAI program video supplied by the user.
-        return ["https://youtu.be/Xx9C_eqc3uI"]
+        return []
 
     if isinstance(configured, (list, tuple)):
         return [str(item).strip() for item in configured if str(item).strip()]
@@ -311,27 +311,30 @@ with tabs[0]:
     st.markdown("### Program Introduction")
 
     st.write(
-        "PragyanAI’s 6-Month Industry-Integrated AI Engineering "
-        "Program is an online, live instructor-led, project-based "
-        "learning program designed to help engineering students "
-        "build practical AI engineering capabilities."
+        "PragyanAI’s AI & GenAI Engineering Program combines 6 months "
+        "of fully offline, intensive training with a 12-month "
+        "internship, placement drive and career-acceleration phase. "
+        "The 18-month, project-led journey helps engineering students "
+        "build practical capabilities across Python, Data Science, "
+        "Business Intelligence, Machine Learning, Deep Learning, "
+        "Computer Vision, NLP, Generative AI and Agentic AI."
     )
 
     # Program metrics
     metrics = st.columns(4)
 
     metric_values = [
+        "18 Months",
         "6 Months",
-        "216",
-        "72",
-        "40"
+        "12 Months",
+        "100+"
     ]
 
     metric_labels = [
-        "Program Duration",
-        "Live Training Hours",
-        "Live Sessions",
-        "Projects"
+        "Total Program Journey",
+        "Fully Offline Training",
+        "Internship & Placement Drive",
+        "Mini Projects"
     ]
 
     for col, value, label in zip(
@@ -353,23 +356,58 @@ with tabs[0]:
     st.markdown("### Key Program Highlights")
 
     highlights = [
-        "24 active teaching weeks and 216 live online training hours",
+        "18-month career journey: 6 months of fully offline intensive training "
+        "followed by 12 months of internship and placement-drive support",
 
-        "Eight technical skill areas, from Python and Data Engineering "
-        "to Agentic AI and MLOps",
+        "Eight skill areas: Python Full Stack, Data Science, BI & Analytics, "
+        "Machine Learning, Deep Learning & Computer Vision, NLP, GenAI and Agentic AI",
 
-        "40 projects: 32 guided and 8 independent",
+        "100+ mini projects and case studies across multiple industry domains",
 
-        "Three research papers and one integrated AI product",
+        "1,000+ hours of learning and 500+ hours of hands-on lab engagement",
 
-        "20% concepts and architecture + 80% practical implementation",
+        "Six 48-hour innovation hackathons and technical seminars",
 
-        "Build real-world applications, deploy AI solutions "
-        "and develop a GitHub portfolio"
+        "60–100 tools, software platforms and libraries",
+
+        "One startup-ready MVP, industry capstone and project demonstrations",
+
+        "Internship exposure, live-client/industry projects, technical mock interviews, "
+        "resume building and placement-drive preparation",
+
+        "Build, deploy and demonstrate real-world AI applications with a "
+        "professional GitHub portfolio"
     ]
 
     for highlight in highlights:
         st.markdown(f"- {highlight}")
+
+    st.markdown("### The 18-Month Two-Phase Journey")
+
+    phase1, phase2 = st.columns(2)
+
+    with phase1:
+        with st.container(border=True):
+            st.markdown("#### Phase 1 · Months 1–6")
+            st.markdown("**Fully Offline Training & Creation**")
+            st.write(
+                "Intensive classroom learning with morning concept sessions "
+                "and afternoon hands-on coding labs. Students progress through "
+                "the eight AI skill areas, build projects, participate in "
+                "hackathons and technical seminars, and develop an industry "
+                "capstone."
+            )
+
+    with phase2:
+        with st.container(border=True):
+            st.markdown("#### Phase 2 · Months 7–18")
+            st.markdown("**Internship, Placement Drive & Career Acceleration**")
+            st.write(
+                "Extended internship and placement preparation through live "
+                "client assignments, industry projects, technical mock "
+                "interviews, resume building, and exposure to startup and "
+                "product development opportunities."
+            )
 
     st.markdown("---")
 
@@ -451,16 +489,15 @@ with tabs[2]:
     )
 
     if PROGRAM_FLOW_IMAGE.exists():
-        st.subheader("6-Month Program Flow")
+        st.subheader("18-Month Program Flow")
         st.image(
             str(PROGRAM_FLOW_IMAGE),
-            caption="PragyanAI 6-Month Industry-Integrated AI Engineering Program Flow",
+            caption="PragyanAI: 6 Months Fully Offline Training + 12 Months Placement Drive",
             use_container_width=True
         )
     else:
         st.warning(
-            "Program flow image not found. Expected: "
-            "assets/6Moths_ProjectBasedLearning_Online_Program_Flow.png"
+            "Program flow image not found. Expected: assets/Program_Flow.png"
         )
 
     st.divider()
@@ -468,42 +505,29 @@ with tabs[2]:
     if not SYLLABUS_EXCEL.exists():
         st.error("Syllabus.xlsx not found in the assets folder.")
     else:
-        syllabus_tabs = st.tabs([
-            "Program Overview",
-            "8-Module Syllabus",
-            "24-Week Roadmap",
-            "Project Framework",
-            "Research & Capstone",
-            "Evaluation",
-            "Program & Mentor"
-        ])
+        try:
+            import pandas as pd
+            workbook = pd.ExcelFile(SYLLABUS_EXCEL)
+            available_sheets = workbook.sheet_names
+        except Exception as exc:
+            available_sheets = []
+            st.error(f"Unable to open Syllabus.xlsx: {exc}")
 
-        syllabus_sheets = [
-            ("Program Overview", 3),
-            ("8-Module Syllabus", 3),
-            ("24-Week Roadmap", 3),
-            ("Project Framework", 3),
-            ("Research & Capstone", 3),
-            ("Evaluation", 3),
-            ("Program & Mentor", 3)
-        ]
+        if available_sheets:
+            syllabus_tabs = st.tabs(available_sheets)
 
-        for syllabus_tab, (sheet_name, header_row) in zip(
-            syllabus_tabs,
-            syllabus_sheets
-        ):
-            with syllabus_tab:
-                st.subheader(sheet_name)
-                if sheet_name == "Program Overview":
-                    overview = read_excel_sheet(
-                        SYLLABUS_EXCEL, sheet_name, header=3
-                    )
-                    render_dataframe(overview)
-                else:
+            for syllabus_tab, sheet_name in zip(syllabus_tabs, available_sheets):
+                with syllabus_tab:
+                    st.subheader(sheet_name)
                     sheet_data = read_excel_sheet(
                         SYLLABUS_EXCEL, sheet_name, header=3
                     )
                     render_dataframe(sheet_data)
+        else:
+            st.info(
+                "No worksheets were found in Syllabus.xlsx. "
+                "Please check the workbook and its assets path."
+            )
 
 
 # =========================================================
@@ -518,8 +542,8 @@ with tabs[3]:
     )
 
     st.write(
-        "Upcoming admissions for the PragyanAI 6-Month Online "
-        "AI Engineering Program."
+        "Upcoming admissions for the PragyanAI 18-Month AI & GenAI Engineering Program "
+        "(6 Months Fully Offline Training + 12 Months Internship & Placement Drive)."
     )
 
     if not UPCOMING_BATCH_EXCEL.exists():
@@ -562,7 +586,7 @@ with tabs[3]:
                             f"**Program:** {batch.get('Program', 'AI Engineering Program')}"
                         )
                         st.markdown(
-                            f"**Mode:** {batch.get('Delivery Mode', 'Online')}"
+                            f"**Mode:** {batch.get('Delivery Mode', 'Fully Offline')}"
                         )
                         st.markdown(
                             f"**Status:** {batch.get('Admission Status', 'Upcoming')}"
@@ -595,16 +619,17 @@ with tabs[4]:
     )
 
     st.write(
-        "Watch program introductions, learning demonstrations, "
-        "project walkthroughs and other PragyanAI videos."
+        "Watch verified introductions, learning demonstrations, "
+        "project walkthroughs and other PragyanAI videos for this program."
     )
 
     video_urls = get_program_video_urls()
 
     if not video_urls:
         st.info(
-            "Displaying the configured PragyanAI program video. "
-            "You can add more links using YOUTUBE_VIDEO_URLS in Streamlit Secrets."
+            "No program video has been configured yet. Add verified video "
+            "links for this 6+12 Month Offline AI & GenAI Program using "
+            "YOUTUBE_VIDEO_URLS in Streamlit Secrets."
         )
         st.code(
             'YOUTUBE_VIDEO_URLS = [\n'
@@ -680,7 +705,7 @@ with tabs[5]:
 
     # User question
     question = st.chat_input(
-        "Type your own question about fees, eligibility, skills, projects…"
+        "Ask about the 6-month offline training, 12-month placement drive, fees, eligibility or skills…"
     )
 
     if question:
@@ -750,8 +775,7 @@ with tabs[6]:
     )
 
     st.write(
-        "Register your interest in the PragyanAI "
-        "6-Month AI Engineering Program."
+        "Register your interest in the PragyanAI 18-Month AI & GenAI Engineering Program."
     )
 
     st.write(
@@ -777,8 +801,9 @@ with tabs[7]:
     )
 
     st.write(
-        "Selected feedback reproduced from the "
-        "PragyanAI program brochure."
+        "The following learner and industry feedback is reproduced from the brochure "
+        "and reflects earlier PragyanAI training engagements; it is not a "
+        "guarantee of an individual placement outcome in this program."
     )
 
     # Student feedback
@@ -792,12 +817,10 @@ with tabs[7]:
         )
 
         st.write(
-            "Akshata describes completing the 10-month online "
-            "course covering Python, machine learning, deep "
-            "learning and data visualization, and credits the "
-            "structured practical learning and mentorship with "
-            "helping her secure a Junior AI Engineer position "
-            "at SynthLinx."
+            "Akshata describes completing a PragyanAI training program covering "
+            "Python, machine learning, deep learning and data visualization. "
+            "She credits the practical learning and mentorship with helping "
+            "her secure a Junior AI Engineer position at SynthLinx."
         )
 
     with st.container(border=True):
@@ -807,12 +830,10 @@ with tabs[7]:
         )
 
         st.write(
-            "Isharani describes training in Python, machine "
-            "learning, deep learning and web development using "
-            "Streamlit, along with hands-on projects and "
-            "internship experience. She reports securing a "
-            "Junior AI Engineer position at SynthLinx "
-            "Private Limited."
+            "Isharani describes training in Python, machine learning, deep learning "
+            "and Streamlit-based web development, along with hands-on projects "
+            "and internship experience. She reports securing a Junior AI "
+            "Engineer position at SynthLinx Private Limited."
         )
 
     # Industry feedback
