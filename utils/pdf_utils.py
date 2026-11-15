@@ -12,6 +12,7 @@ Features:
 6. Translate selected page into multiple languages.
 7. Generate AI explanation of selected page.
 8. Browser-based Audio Book playback.
+9. Generate and download MP3 narration using gTTS.
 
 Dependencies:
     streamlit
@@ -26,8 +27,21 @@ Required project structure:
 """
 
 import json
+import hashlib
+from io import BytesIO
+
 import streamlit as st
 import fitz
+
+# gTTS is optional so the existing flipbook still works if it is unavailable.
+try:
+    from gtts import gTTS
+    GTTS_AVAILABLE = True
+    GTTS_IMPORT_ERROR = None
+except Exception as gtts_import_error:
+    gTTS = None
+    GTTS_AVAILABLE = False
+    GTTS_IMPORT_ERROR = str(gtts_import_error)
 
 
 # =========================================================
@@ -134,6 +148,30 @@ LANGUAGE_CODES = {
     "Arabic": "ar-SA",
     "Japanese": "ja-JP",
     "Chinese (Mandarin)": "zh-CN"
+}
+
+
+# gTTS language identifiers are different from browser SpeechSynthesis locales.
+# If a language is not supported by the installed gTTS release, the UI displays
+# a clear message and the rest of the flipbook remains available.
+GTTS_LANGUAGE_CODES = {
+    "English": "en",
+    "Hindi": "hi",
+    "Kannada": "kn",
+    "Telugu": "te",
+    "Tamil": "ta",
+    "Malayalam": "ml",
+    "Marathi": "mr",
+    "Bengali": "bn",
+    "Gujarati": "gu",
+    "Punjabi": "pa",
+    "Urdu": "ur",
+    "Spanish": "es",
+    "French": "fr",
+    "German": "de",
+    "Arabic": "ar",
+    "Japanese": "ja",
+    "Chinese (Mandarin)": "zh-CN",
 }
 
 
@@ -500,6 +538,116 @@ def _render_translation(
             key=f"download_translation_{page_number}_{language}"
         )
 
+        st.divider()
+        _render_gtts_audio(
+            st.session_state[translated_key],
+            language=language,
+            key_prefix=f"translated_page_{page_number}_{language}"
+        )
+
+
+# =========================================================
+# 11. gTTS MP3 GENERATION
+# =========================================================
+
+def _generate_gtts_audio(text, language="English"):
+    """
+    Convert text into MP3 bytes using Google Text-to-Speech (gTTS).
+
+    This requires an internet connection. The returned bytes can be played
+    in Streamlit and downloaded without writing temporary files to disk.
+    """
+    if not GTTS_AVAILABLE:
+        raise RuntimeError(
+            "gTTS is not installed. Add 'gTTS>=2.5.4' to requirements.txt "
+            "and redeploy the Streamlit application."
+        )
+
+    clean_text = str(text or "").strip()
+    if not clean_text:
+        raise ValueError("There is no text available to convert into speech.")
+
+    language_code = GTTS_LANGUAGE_CODES.get(language)
+    if not language_code:
+        raise ValueError(
+            f"gTTS language code is not configured for {language}."
+        )
+
+    audio_buffer = BytesIO()
+    tts = gTTS(
+        text=clean_text,
+        lang=language_code,
+        slow=False
+    )
+    tts.write_to_fp(audio_buffer)
+    audio_buffer.seek(0)
+    return audio_buffer.getvalue()
+
+
+def _render_gtts_audio(text, language="English", key_prefix="gtts_audio"):
+    """
+    Render MP3 generation, playback and download controls.
+
+    Audio is cached in Streamlit session state for the current text/language
+    combination, avoiding another network request on ordinary reruns.
+    """
+    if not text or not str(text).strip():
+        st.info("There is no text available to convert into audio.")
+        return
+
+    if not GTTS_AVAILABLE:
+        st.warning(
+            "MP3 generation is unavailable because gTTS could not be imported. "
+            "Add gTTS to requirements.txt and redeploy."
+        )
+        with st.expander("gTTS installation details"):
+            st.code(str(GTTS_IMPORT_ERROR or "gTTS import failed"))
+        return
+
+    text_value = str(text).strip()
+    text_hash = hashlib.sha256(
+        f"{language}:{text_value}".encode("utf-8")
+    ).hexdigest()[:16]
+    audio_state_key = f"{key_prefix}_{text_hash}"
+    button_key = f"{key_prefix}_generate_{text_hash}"
+
+    st.markdown("#### 🔊 Generate MP3 Audio")
+
+    if st.button(
+        f"Generate {language} MP3",
+        key=button_key,
+        use_container_width=True
+    ):
+        try:
+            with st.spinner(
+                f"Converting text to {language} speech using gTTS..."
+            ):
+                audio_bytes = _generate_gtts_audio(
+                    text_value,
+                    language
+                )
+            st.session_state[audio_state_key] = audio_bytes
+            st.success("MP3 audio generated successfully.")
+        except Exception as error:
+            st.error(
+                "Unable to generate MP3 audio. Check your internet connection "
+                "and confirm that gTTS supports the selected language."
+            )
+            with st.expander("Technical details"):
+                st.code(str(error))
+
+    audio_bytes = st.session_state.get(audio_state_key)
+    if audio_bytes:
+        st.audio(audio_bytes, format="audio/mp3")
+        st.download_button(
+            label="⬇ Download MP3 Audio",
+            data=audio_bytes,
+            file_name=f"PragyanAI_{language}_Audio.mp3",
+            mime="audio/mpeg",
+            key=f"{key_prefix}_download_{text_hash}",
+            use_container_width=True
+        )
+
 
 # =========================================================
 # 11. BROWSER AUDIO BOOK PLAYER
@@ -715,6 +863,13 @@ def _render_audio_book(
         _render_audio_player(
             explanation,
             language
+        )
+
+        st.divider()
+        _render_gtts_audio(
+            explanation,
+            language=language,
+            key_prefix=f"explanation_page_{page_number}_{language}"
         )
 
 
