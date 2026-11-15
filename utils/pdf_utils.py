@@ -52,6 +52,45 @@ except Exception as import_error:
     translate_page_text = None
 
 
+def _show_ai_error(error, task="AI request"):
+    """
+    Display actionable guidance for common Groq authentication failures.
+    Never print or expose the configured API key.
+    """
+    error_text = str(error)
+    lowered = error_text.lower()
+
+    if "401" in lowered or "invalid_api_key" in lowered or "invalid api key" in lowered:
+        st.error(f"{task} could not authenticate with Groq: invalid API key.")
+        st.markdown(
+            """
+            **How to fix the Groq API key**
+
+            1. Open your [Groq Console](https://console.groq.com/keys).
+            2. Create a valid API key or copy the correct active key.
+            3. In Streamlit Cloud, open your app → **Manage app** →
+               **Settings** → **Secrets**.
+            4. Add or update this setting:
+
+            ```toml
+            GROQ_API_KEY = "gsk_your_actual_key_here"
+            ```
+
+            5. Save the Secrets and reboot/redeploy the app.
+
+            Do not paste your real API key into chat, GitHub, or source code.
+            """
+        )
+    elif "429" in lowered or "rate_limit" in lowered:
+        st.error(f"{task} reached the Groq rate limit. Please wait and try again.")
+        with st.expander("Technical details"):
+            st.code(error_text)
+    else:
+        st.error(f"{task} failed. Please check your Groq configuration.")
+        with st.expander("Technical details"):
+            st.code(error_text)
+
+
 # =========================================================
 # 2. LANGUAGE CONFIGURATION
 # =========================================================
@@ -432,10 +471,7 @@ def _render_translation(
                 )
 
         except Exception as error:
-
-            st.error(
-                f"Translation failed: {error}"
-            )
+            _show_ai_error(error, task="Translation")
 
     translated_key = (
         f"translated_{page_number}_{language}"
@@ -474,111 +510,44 @@ def _render_audio_player(
     language="English"
 ):
     """
-    Play AI-generated explanation using browser speechSynthesis.
-
-    Note:
-        Audio is played by the browser.
-        This does not generate a downloadable MP3.
+    Browser-based text-to-speech player.
+    Audio is synthesized by the visitor's browser; no MP3 is generated.
     """
 
     if not text or not str(text).strip():
-        st.warning(
-            "No explanation is available for audio playback."
-        )
+        st.info("There is no explanation text available to play.")
         return
 
-    voice_language = LANGUAGE_CODES.get(
-        language,
-        "en-IN"
-    )
-
-    # Safely serialize Python strings for JavaScript.
-    safe_text = json.dumps(
-        str(text),
-        ensure_ascii=False
-    )
-    safe_language = json.dumps(
-        voice_language,
-        ensure_ascii=False
-    )
+    voice_language = LANGUAGE_CODES.get(language, "en-IN")
+    safe_text = json.dumps(str(text), ensure_ascii=False)
+    safe_language = json.dumps(voice_language, ensure_ascii=False)
 
     component_html = f"""
     <div style="
         padding: 18px;
-        border: 1px solid #d9d9d9;
-        border-radius: 12px;
-        background: #f8fafc;
+        border: 1px solid #dbe3f0;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #f8fbff, #eef4ff);
         font-family: Arial, sans-serif;
     ">
-
-        <h4 style="
-            margin-top: 0;
-            color: #1e293b;
-        ">
-            PragyanAI Audio Book Player
-        </h4>
-
-        <div style="
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        ">
-
-            <button id="play" style="
-                padding: 10px 18px;
-                border: none;
-                border-radius: 7px;
-                color: white;
-                background: #2563eb;
-                cursor: pointer;
-            ">▶ Play</button>
-
-            <button id="pause" style="
-                padding: 10px 18px;
-                border: none;
-                border-radius: 7px;
-                color: white;
-                background: #64748b;
-                cursor: pointer;
-            ">⏸ Pause</button>
-
-            <button id="resume" style="
-                padding: 10px 18px;
-                border: none;
-                border-radius: 7px;
-                color: white;
-                background: #16a34a;
-                cursor: pointer;
-            ">▶ Resume</button>
-
-            <button id="stop" style="
-                padding: 10px 18px;
-                border: none;
-                border-radius: 7px;
-                color: white;
-                background: #dc2626;
-                cursor: pointer;
-            ">■ Stop</button>
-
+        <div style="font-size:17px;font-weight:700;color:#172554;margin-bottom:12px;">
+            🎧 PragyanAI Audio Book Player
         </div>
-
-        <p id="status" style="
-            margin-bottom: 0;
-            margin-top: 14px;
-            font-size: 13px;
-            color: #475569;
-        ">
-            Ready to play.
-        </p>
-
+        <div style="display:flex;flex-wrap:wrap;gap:9px;">
+            <button id="play" style="padding:10px 18px;border:0;border-radius:8px;color:white;background:#1d4ed8;cursor:pointer;">▶ Play</button>
+            <button id="pause" style="padding:10px 18px;border:0;border-radius:8px;color:white;background:#475569;cursor:pointer;">⏸ Pause</button>
+            <button id="resume" style="padding:10px 18px;border:0;border-radius:8px;color:white;background:#15803d;cursor:pointer;">▶ Resume</button>
+            <button id="stop" style="padding:10px 18px;border:0;border-radius:8px;color:white;background:#b91c1c;cursor:pointer;">■ Stop</button>
+        </div>
+        <div id="status" style="margin-top:12px;color:#475569;font-size:13px;">
+            Ready to play · Language: {language}
+        </div>
     </div>
 
     <script>
         const textToSpeak = {safe_text};
         const selectedLanguage = {safe_language};
-
         const statusElement = document.getElementById("status");
-
         let speechUtterance = null;
 
         function stopSpeech() {{
@@ -589,66 +558,49 @@ def _render_audio_player(
 
         function playSpeech() {{
             if (!("speechSynthesis" in window)) {{
-                statusElement.innerText =
-                    "Your browser does not support speech synthesis.";
+                statusElement.innerText = "Speech synthesis is not supported in this browser.";
                 return;
             }}
-
             stopSpeech();
-
-            speechUtterance =
-                new SpeechSynthesisUtterance(textToSpeak);
-
+            speechUtterance = new SpeechSynthesisUtterance(textToSpeak);
             speechUtterance.lang = selectedLanguage;
-            speechUtterance.rate = 0.9;
+            speechUtterance.rate = 0.92;
             speechUtterance.pitch = 1;
-
             speechUtterance.onstart = function() {{
                 statusElement.innerText = "Playing audio...";
             }};
-
             speechUtterance.onend = function() {{
-                statusElement.innerText = "Audio completed.";
+                statusElement.innerText = "Playback completed.";
             }};
-
             speechUtterance.onerror = function(event) {{
-                statusElement.innerText =
-                    "Audio error: " + event.error;
+                statusElement.innerText = "Playback error: " + event.error;
             }};
-
             window.speechSynthesis.speak(speechUtterance);
         }}
 
-        document.getElementById("play")
-            .addEventListener("click", playSpeech);
-
-        document.getElementById("pause")
-            .addEventListener("click", function() {{
-                if ("speechSynthesis" in window) {{
-                    window.speechSynthesis.pause();
-                    statusElement.innerText = "Audio paused.";
-                }}
-            }});
-
-        document.getElementById("resume")
-            .addEventListener("click", function() {{
-                if ("speechSynthesis" in window) {{
-                    window.speechSynthesis.resume();
-                    statusElement.innerText = "Audio resumed.";
-                }}
-            }});
-
-        document.getElementById("stop")
-            .addEventListener("click", function() {{
-                stopSpeech();
-                statusElement.innerText = "Audio stopped.";
-            }});
+        document.getElementById("play").addEventListener("click", playSpeech);
+        document.getElementById("pause").addEventListener("click", function() {{
+            if ("speechSynthesis" in window) {{
+                window.speechSynthesis.pause();
+                statusElement.innerText = "Playback paused.";
+            }}
+        }});
+        document.getElementById("resume").addEventListener("click", function() {{
+            if ("speechSynthesis" in window) {{
+                window.speechSynthesis.resume();
+                statusElement.innerText = "Playback resumed.";
+            }}
+        }});
+        document.getElementById("stop").addEventListener("click", function() {{
+            stopSpeech();
+            statusElement.innerText = "Playback stopped.";
+        }});
     </script>
     """
 
     st.components.v1.html(
         component_html,
-        height=180,
+        height=165,
         scrolling=False
     )
 
@@ -721,10 +673,7 @@ def _render_audio_book(
                 )
 
         except Exception as error:
-
-            st.error(
-                f"Explanation generation failed: {error}"
-            )
+            _show_ai_error(error, task="AI explanation generation")
 
     explanation_key = (
         f"explanation_{page_number}_{language}"
@@ -810,12 +759,16 @@ def render_flipbook(pdf_bytes):
     # -----------------------------------------------------
 
     if "flipbook_page" not in st.session_state:
-
         st.session_state.flipbook_page = 0
 
     if "flipbook_zoom" not in st.session_state:
-
         st.session_state.flipbook_zoom = 1.5
+
+    # Keep the number_input widget in sync with the navigation buttons.
+    if "flipbook_page_selector" not in st.session_state:
+        st.session_state.flipbook_page_selector = (
+            st.session_state.flipbook_page + 1
+        )
 
     # Validate current page state.
 
@@ -831,34 +784,41 @@ def render_flipbook(pdf_bytes):
     # Flipbook header
     # -----------------------------------------------------
 
-    st.markdown(
-        """
-        <div style="
-            text-align: center;
-            padding: 10px 0 18px 0;
-        ">
+    with st.container(border=True):
+        st.markdown("## 📖 PragyanAI Program Flipbook")
+        st.caption(
+            "Explore the AI Engineering Program brochure page by page. "
+            "Navigate, zoom, download, translate and listen to AI explanations."
+        )
 
-            <h2 style="
-                margin-bottom: 5px;
-            ">
-                PragyanAI Program Flipbook
-            </h2>
-
-            <p style="
-                color: gray;
-                margin-top: 0;
-            ">
-                Explore the AI Engineering Program brochure.
-            </p>
-
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
 
     # -----------------------------------------------------
     # Main menu
     # -----------------------------------------------------
+
+    st.markdown(
+        """
+        <style>
+        div[data-testid="stTabs"] button[role="tab"] {
+            font-weight: 650;
+            padding: 0.65rem 1rem;
+        }
+        div[data-testid="stTabs"] button[aria-selected="true"] {
+            border-bottom: 3px solid #6d28d9;
+        }
+        div[data-testid="stButton"] button {
+            border-radius: 10px;
+            font-weight: 600;
+            min-height: 42px;
+        }
+        div[data-testid="stDownloadButton"] button {
+            border-radius: 10px;
+            font-weight: 600;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
     view_tab, download_tab, translate_tab, audio_tab = st.tabs(
         [
@@ -898,8 +858,13 @@ def render_flipbook(pdf_bytes):
                 key="flipbook_previous"
             ):
 
-                st.session_state.flipbook_page -= 1
-
+                st.session_state.flipbook_page = max(
+                    0,
+                    st.session_state.flipbook_page - 1
+                )
+                st.session_state.flipbook_page_selector = (
+                    st.session_state.flipbook_page + 1
+                )
                 st.rerun()
 
         with page_col:
@@ -919,9 +884,9 @@ def render_flipbook(pdf_bytes):
             ):
 
                 st.session_state.flipbook_page = (
-                    selected_page - 1
+                    int(selected_page) - 1
                 )
-
+                st.session_state.flipbook_page_selector = int(selected_page)
                 st.rerun()
 
         with next_col:
@@ -936,14 +901,20 @@ def render_flipbook(pdf_bytes):
                 key="flipbook_next"
             ):
 
-                st.session_state.flipbook_page += 1
-
+                st.session_state.flipbook_page = min(
+                    total_pages - 1,
+                    st.session_state.flipbook_page + 1
+                )
+                st.session_state.flipbook_page_selector = (
+                    st.session_state.flipbook_page + 1
+                )
                 st.rerun()
 
-        st.caption(
-            f"Page {st.session_state.flipbook_page + 1} "
-            f"of {total_pages}"
+        current_page_display = st.session_state.flipbook_page + 1
+        st.markdown(
+            f"**Page {current_page_display} of {total_pages}**"
         )
+        st.progress(current_page_display / total_pages)
 
         # -------------------------------------------------
         # Zoom controls
