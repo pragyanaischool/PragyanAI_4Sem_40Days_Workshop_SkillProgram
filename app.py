@@ -546,65 +546,49 @@ with tabs[3]:
         "(6 Months Fully Offline Training + 12 Months Internship & Placement Drive)."
     )
 
-    if not UPCOMING_BATCH_EXCEL.exists():
-        st.error("Upcoming_Batch.xlsx not found in the assets folder.")
-    else:
-        batches = read_excel_sheet(
-            UPCOMING_BATCH_EXCEL,
-            "Upcoming Batches",
-            header=2
-        )
+    # Confirmed batch schedule
+    # Keep this list as the single source of truth for the batch cards.
+    upcoming_batches = [
+        {
+            "Batch Name": "Batch 1",
+            "Program": "AI Engineering Program",
+            "Delivery Mode": "Fully Offline",
+            "Admission Status": "Upcoming",
+            "Batch Start Date": "January 2027",
+        },
+        {
+            "Batch Name": "Batch 2",
+            "Program": "AI Engineering Program",
+            "Delivery Mode": "Fully Offline",
+            "Admission Status": "Upcoming",
+            "Batch Start Date": "August 2027",
+        },
+        {
+            "Batch Name": "Batch 3",
+            "Program": "AI Engineering Program",
+            "Delivery Mode": "Fully Offline",
+            "Admission Status": "Upcoming",
+            "Batch Start Date": "January 2028",
+        },
+    ]
 
-        if batches is None or batches.empty:
-            st.info("Upcoming batch details are not available.")
-        else:
-            # Remove entirely blank columns/rows and normalize date display.
-            batches = batches.dropna(how="all").dropna(axis=1, how="all")
-            if "Batch Start Date" in batches.columns:
-                batches["Batch Start Date"] = batches["Batch Start Date"].apply(
-                    lambda value: (
-                        value.strftime("%d %b %Y")
-                        if hasattr(value, "strftime")
-                        else ("" if value is None else str(value))
-                    )
-                )
+    st.subheader("Batch Schedule")
+    batch_columns = st.columns(3)
 
-            st.dataframe(
-                batches,
-                use_container_width=True,
-                hide_index=True
-            )
+    for index, batch in enumerate(upcoming_batches):
+        with batch_columns[index]:
+            with st.container(border=True):
+                st.markdown(f"### {batch['Batch Name']}")
+                st.markdown(f"**Program:** {batch['Program']}")
+                st.markdown(f"**Mode:** {batch['Delivery Mode']}")
+                st.markdown(f"**Status:** {batch['Admission Status']}")
+                st.markdown(f"**Start Date:** {batch['Batch Start Date']}")
+                st.caption("Registration link will be announced.")
 
-            st.subheader("Batch Schedule")
-            batch_columns = st.columns(min(len(batches), 2))
-            for index, (_, batch) in enumerate(batches.iterrows()):
-                with batch_columns[index % len(batch_columns)]:
-                    batch_name = batch.get("Batch Name", f"Batch {index + 1}")
-                    with st.container(border=True):
-                        st.markdown(f"### {batch_name}")
-                        st.markdown(
-                            f"**Program:** {batch.get('Program', 'AI Engineering Program')}"
-                        )
-                        st.markdown(
-                            f"**Mode:** {batch.get('Delivery Mode', 'Fully Offline')}"
-                        )
-                        st.markdown(
-                            f"**Status:** {batch.get('Admission Status', 'Upcoming')}"
-                        )
-                        start_date = batch.get("Batch Start Date")
-                        if start_date and str(start_date).lower() != "nan":
-                            st.write(f"**Start date:** {start_date}")
-                        registration_link = batch.get("Registration Link")
-                        if registration_link and str(registration_link).lower() != "nan":
-                            st.link_button(
-                                "Register for this batch",
-                                str(registration_link)
-                            )
-                        else:
-                            st.caption("Registration link will be announced.")
-                        contact = batch.get("Contact")
-                        if contact and str(contact).lower() != "nan":
-                            st.write(f"**Contact:** {contact}")
+    st.info(
+        "Batch dates are planned schedules and may be updated by PragyanAI. "
+        "Registration details will be published when admissions open."
+    )
 
 
 # =========================================================
