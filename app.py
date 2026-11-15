@@ -21,6 +21,9 @@ ASSETS = ROOT / "assets"
 
 DEFAULT_PDF = ASSETS / "pragyanai_ai_engineering_brochure.pdf"
 DEFAULT_FLYER = ASSETS / "pragyanai_program_flyer.png"
+SYLLABUS_EXCEL = ASSETS / "Syllabus.xlsx"
+UPCOMING_BATCH_EXCEL = ASSETS / "Upcoming_Batch.xlsx"
+PROGRAM_FLOW_IMAGE = ASSETS / "6Moths_ProjectBasedLearning_Online_Program_Flow.png"
 
 LINKEDIN_PROFILE = (
     "https://www.linkedin.com/in/sateesh-ambesange-3020185/"
@@ -140,7 +143,75 @@ def render_google_eoi_form():
 
 
 # ---------------------------------------------------------
-# 3. HEADER AND SIDEBAR
+# 3. DATA AND MEDIA HELPERS
+# ---------------------------------------------------------
+
+def read_excel_sheet(path, sheet_name, header=0):
+    """Read an Excel worksheet safely; return None if unavailable."""
+    if not path.exists():
+        return None
+    try:
+        import pandas as pd
+        return pd.read_excel(path, sheet_name=sheet_name, header=header)
+    except Exception as exc:
+        st.error(f"Unable to read {path.name} / {sheet_name}: {exc}")
+        return None
+
+
+def render_dataframe(dataframe):
+    """Display a non-empty dataframe with a friendly empty state."""
+    if dataframe is None:
+        st.info("This information file is not available in the assets folder.")
+    elif dataframe.empty:
+        st.info("No records are currently available in this worksheet.")
+    else:
+        st.dataframe(dataframe, use_container_width=True, hide_index=True)
+
+
+def get_youtube_video_id(url):
+    """Extract a YouTube video ID from watch, short, embed or Shorts URLs."""
+    parsed = urlparse(str(url).strip())
+    host = parsed.netloc.lower().split(":")[0]
+
+    if host in {"youtu.be", "www.youtu.be"}:
+        video_id = parsed.path.strip("/").split("/")[0]
+    elif host.endswith("youtube.com") or host.endswith("youtube-nocookie.com"):
+        if parsed.path == "/watch":
+            video_id = parse_qs(parsed.query).get("v", [""])[0]
+        elif parsed.path.startswith(("/embed/", "/shorts/", "/live/")):
+            parts = parsed.path.strip("/").split("/")
+            video_id = parts[1] if len(parts) > 1 else ""
+        else:
+            video_id = ""
+    else:
+        video_id = ""
+
+    # YouTube IDs are 11 characters.
+    return video_id if len(video_id) == 11 else None
+
+
+def get_program_video_urls():
+    """
+    Read YouTube URLs from Streamlit Secrets.
+    Configure YOUTUBE_VIDEO_URLS as a list or a newline/comma-separated string.
+    """
+    configured = get_setting("YOUTUBE_VIDEO_URLS")
+    if not configured:
+        # Default PragyanAI program video supplied by the user.
+        return ["https://youtu.be/Xx9C_eqc3uI"]
+
+    if isinstance(configured, (list, tuple)):
+        return [str(item).strip() for item in configured if str(item).strip()]
+
+    return [
+        item.strip().strip('"').strip("'")
+        for item in str(configured).replace(",", "\n").splitlines()
+        if item.strip()
+    ]
+
+
+# ---------------------------------------------------------
+# 4. HEADER AND SIDEBAR
 # ---------------------------------------------------------
 
 render_header()
@@ -167,7 +238,7 @@ with st.sidebar:
 
 
 # ---------------------------------------------------------
-# 4. LOAD DEFAULT PROGRAM MATERIALS
+# 5. LOAD DEFAULT PROGRAM MATERIALS
 # ---------------------------------------------------------
 
 if not DEFAULT_PDF.exists():
@@ -207,9 +278,12 @@ with st.spinner("Preparing the program knowledge base…"):
 tabs = st.tabs([
     "1. Flyer & Introduction",
     "2. Program Flipbook",
-    "3. Ask Chatbot",
-    "4. Expression of Interest",
-    "5. What Customers Say"
+    "3. Syllabus & Program Flow",
+    "4. Upcoming Batches",
+    "5. Program Videos",
+    "6. Ask Chatbot",
+    "7. Expression of Interest",
+    "8. What Customers Say"
 ])
 
 
@@ -366,10 +440,201 @@ with tabs[1]:
 
 
 # =========================================================
-# TAB 3: ASK CHATBOT
+# TAB 3: SYLLABUS AND PROGRAM FLOW
 # =========================================================
 
 with tabs[2]:
+
+    st.markdown(
+        '<div class="section-title">Syllabus & Program Flow</div>',
+        unsafe_allow_html=True
+    )
+
+    if PROGRAM_FLOW_IMAGE.exists():
+        st.subheader("6-Month Program Flow")
+        st.image(
+            str(PROGRAM_FLOW_IMAGE),
+            caption="PragyanAI 6-Month Industry-Integrated AI Engineering Program Flow",
+            use_container_width=True
+        )
+    else:
+        st.warning(
+            "Program flow image not found. Expected: "
+            "assets/6Moths_ProjectBasedLearning_Online_Program_Flow.png"
+        )
+
+    st.divider()
+
+    if not SYLLABUS_EXCEL.exists():
+        st.error("Syllabus.xlsx not found in the assets folder.")
+    else:
+        syllabus_tabs = st.tabs([
+            "Program Overview",
+            "8-Module Syllabus",
+            "24-Week Roadmap",
+            "Project Framework",
+            "Research & Capstone",
+            "Evaluation",
+            "Program & Mentor"
+        ])
+
+        syllabus_sheets = [
+            ("Program Overview", 3),
+            ("8-Module Syllabus", 3),
+            ("24-Week Roadmap", 3),
+            ("Project Framework", 3),
+            ("Research & Capstone", 3),
+            ("Evaluation", 3),
+            ("Program & Mentor", 3)
+        ]
+
+        for syllabus_tab, (sheet_name, header_row) in zip(
+            syllabus_tabs,
+            syllabus_sheets
+        ):
+            with syllabus_tab:
+                st.subheader(sheet_name)
+                if sheet_name == "Program Overview":
+                    overview = read_excel_sheet(
+                        SYLLABUS_EXCEL, sheet_name, header=3
+                    )
+                    render_dataframe(overview)
+                else:
+                    sheet_data = read_excel_sheet(
+                        SYLLABUS_EXCEL, sheet_name, header=3
+                    )
+                    render_dataframe(sheet_data)
+
+
+# =========================================================
+# TAB 4: UPCOMING BATCHES
+# =========================================================
+
+with tabs[3]:
+
+    st.markdown(
+        '<div class="section-title">Upcoming AI Engineering Batches</div>',
+        unsafe_allow_html=True
+    )
+
+    st.write(
+        "Upcoming admissions for the PragyanAI 6-Month Online "
+        "AI Engineering Program."
+    )
+
+    if not UPCOMING_BATCH_EXCEL.exists():
+        st.error("Upcoming_Batch.xlsx not found in the assets folder.")
+    else:
+        batches = read_excel_sheet(
+            UPCOMING_BATCH_EXCEL,
+            "Upcoming Batches",
+            header=2
+        )
+
+        if batches is None or batches.empty:
+            st.info("Upcoming batch details are not available.")
+        else:
+            # Remove entirely blank columns/rows and normalize date display.
+            batches = batches.dropna(how="all").dropna(axis=1, how="all")
+            if "Batch Start Date" in batches.columns:
+                batches["Batch Start Date"] = batches["Batch Start Date"].apply(
+                    lambda value: (
+                        value.strftime("%d %b %Y")
+                        if hasattr(value, "strftime")
+                        else ("" if value is None else str(value))
+                    )
+                )
+
+            st.dataframe(
+                batches,
+                use_container_width=True,
+                hide_index=True
+            )
+
+            st.subheader("Batch Schedule")
+            batch_columns = st.columns(min(len(batches), 2))
+            for index, (_, batch) in enumerate(batches.iterrows()):
+                with batch_columns[index % len(batch_columns)]:
+                    batch_name = batch.get("Batch Name", f"Batch {index + 1}")
+                    with st.container(border=True):
+                        st.markdown(f"### {batch_name}")
+                        st.markdown(
+                            f"**Program:** {batch.get('Program', 'AI Engineering Program')}"
+                        )
+                        st.markdown(
+                            f"**Mode:** {batch.get('Delivery Mode', 'Online')}"
+                        )
+                        st.markdown(
+                            f"**Status:** {batch.get('Admission Status', 'Upcoming')}"
+                        )
+                        start_date = batch.get("Batch Start Date")
+                        if start_date and str(start_date).lower() != "nan":
+                            st.write(f"**Start date:** {start_date}")
+                        registration_link = batch.get("Registration Link")
+                        if registration_link and str(registration_link).lower() != "nan":
+                            st.link_button(
+                                "Register for this batch",
+                                str(registration_link)
+                            )
+                        else:
+                            st.caption("Registration link will be announced.")
+                        contact = batch.get("Contact")
+                        if contact and str(contact).lower() != "nan":
+                            st.write(f"**Contact:** {contact}")
+
+
+# =========================================================
+# TAB 5: PROGRAM VIDEOS
+# =========================================================
+
+with tabs[4]:
+
+    st.markdown(
+        '<div class="section-title">PragyanAI Program Videos</div>',
+        unsafe_allow_html=True
+    )
+
+    st.write(
+        "Watch program introductions, learning demonstrations, "
+        "project walkthroughs and other PragyanAI videos."
+    )
+
+    video_urls = get_program_video_urls()
+
+    if not video_urls:
+        st.info(
+            "Displaying the configured PragyanAI program video. "
+            "You can add more links using YOUTUBE_VIDEO_URLS in Streamlit Secrets."
+        )
+        st.code(
+            'YOUTUBE_VIDEO_URLS = [\n'
+            '  "https://www.youtube.com/watch?v=VIDEO_ID_1",\n'
+            '  "https://youtu.be/VIDEO_ID_2"\n'
+            ']',
+            language="toml"
+        )
+    else:
+        valid_video_count = 0
+        for video_number, video_url in enumerate(video_urls, start=1):
+            video_id = get_youtube_video_id(video_url)
+            if not video_id:
+                st.warning(f"Video {video_number}: invalid YouTube URL skipped.")
+                continue
+
+            valid_video_count += 1
+            st.subheader(f"Program Video {valid_video_count}")
+            st.video(f"https://www.youtube.com/watch?v={video_id}")
+            st.caption(f"Source: {video_url}")
+
+        if valid_video_count == 0:
+            st.warning("No valid YouTube video links were found.")
+
+
+# =========================================================
+# TAB 6: ASK CHATBOT
+# =========================================================
+
+with tabs[5]:
 
     st.markdown(
         '<div class="section-title">'
@@ -472,10 +737,10 @@ with tabs[2]:
 
 
 # =========================================================
-# TAB 4: EXPRESSION OF INTEREST
+# TAB 7: EXPRESSION OF INTEREST
 # =========================================================
 
-with tabs[3]:
+with tabs[6]:
 
     st.markdown(
         '<div class="section-title">'
@@ -499,10 +764,10 @@ with tabs[3]:
 
 
 # =========================================================
-# TAB 5: TESTIMONIALS AND CUSTOMER FEEDBACK
+# TAB 8: TESTIMONIALS AND CUSTOMER FEEDBACK
 # =========================================================
 
-with tabs[4]:
+with tabs[7]:
 
     st.markdown(
         '<div class="section-title">'
