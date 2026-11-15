@@ -241,34 +241,65 @@ with st.sidebar:
 # 5. LOAD DEFAULT PROGRAM MATERIALS
 # ---------------------------------------------------------
 
-if not DEFAULT_PDF.exists():
-    st.error(
-        "Program brochure PDF not found. "
-        "Please check the assets folder."
-    )
-    st.stop()
-
 if not DEFAULT_FLYER.exists():
     st.warning(
         "Program flyer image not found. "
         "Please check the assets folder."
     )
 
-pdf_bytes = DEFAULT_PDF.read_bytes()
+# Validate the brochure before passing it to PyMuPDF / the RAG engine.
+# A zero-byte, Git LFS pointer, HTML error page, or incorrectly uploaded
+# asset must not crash the rest of the Streamlit application.
+pdf_bytes = None
+vector_store = None
 
-# Create the brochure knowledge base for chatbot
-with st.spinner("Preparing the program knowledge base…"):
-
+if not DEFAULT_PDF.exists():
+    st.warning(
+        "Program brochure PDF not found at "
+        f"{DEFAULT_PDF.relative_to(ROOT)}. The flipbook and brochure chatbot "
+        "will be unavailable until the valid PDF is uploaded to the assets folder."
+    )
+else:
     try:
-        vector_store = create_vector_store(pdf_bytes)
+        candidate_pdf = DEFAULT_PDF.read_bytes()
+
+        if not candidate_pdf:
+            raise ValueError("The brochure file is empty (0 bytes).")
+
+        if not candidate_pdf.startswith(b"%PDF-"):
+            raise ValueError(
+                "The file does not have a valid PDF header. "
+                "Check that the actual PDF was uploaded, not a Git LFS pointer or HTML page."
+            )
+
+        # Confirm that the PDF can be opened and contains at least one page.
+        import fitz
+        with fitz.open(stream=candidate_pdf, filetype="pdf") as brochure_doc:
+            if brochure_doc.page_count < 1:
+                raise ValueError("The brochure PDF contains no pages.")
+
+        pdf_bytes = candidate_pdf
 
     except Exception as exc:
-        vector_store = None
-        st.error(
-            "Unable to prepare the chatbot knowledge base. "
-            "Please check the application configuration."
+        st.warning(
+            "The program brochure could not be validated. The rest of the "
+            "application will continue, but the flipbook and brochure chatbot "
+            "will remain unavailable until assets/pragyanai_ai_engineering_brochure.pdf "
+            f"is replaced with a valid PDF. Details: {exc}"
         )
-        st.exception(exc)
+
+# Prepare the brochure knowledge base only when a valid PDF is available.
+if pdf_bytes is not None:
+    with st.spinner("Preparing the program knowledge base…"):
+        try:
+            vector_store = create_vector_store(pdf_bytes)
+        except Exception as exc:
+            vector_store = None
+            st.warning(
+                "The brochure chatbot could not be initialized. Other program "
+                "portal features remain available. Check the brochure and RAG "
+                f"configuration. Details: {exc}"
+            )
 
 
 # ---------------------------------------------------------
@@ -474,7 +505,13 @@ with tabs[1]:
         "using the page-turn controls."
     )
 
-    render_flipbook(pdf_bytes)
+    if pdf_bytes is not None:
+        render_flipbook(pdf_bytes)
+    else:
+        st.info(
+            "The brochure flipbook is temporarily unavailable. Upload a valid "
+            "PDF as assets/pragyanai_ai_engineering_brochure.pdf."
+        )
 
 
 # =========================================================
