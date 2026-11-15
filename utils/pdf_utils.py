@@ -718,6 +718,22 @@ def _render_audio_book(
         )
 
 
+def _go_to_previous_page(total_pages):
+    """Move one page backward before Streamlit instantiates widgets."""
+    current = int(st.session_state.get("flipbook_page", 0))
+    new_page = max(0, current - 1)
+    st.session_state.flipbook_page = new_page
+    st.session_state.flipbook_page_selector = new_page + 1
+
+
+def _go_to_next_page(total_pages):
+    """Move one page forward before Streamlit instantiates widgets."""
+    current = int(st.session_state.get("flipbook_page", 0))
+    new_page = min(int(total_pages) - 1, current + 1)
+    st.session_state.flipbook_page = new_page
+    st.session_state.flipbook_page_selector = new_page + 1
+
+
 # =========================================================
 # 13. MAIN FLIPBOOK FUNCTION
 # =========================================================
@@ -849,23 +865,14 @@ def render_flipbook(pdf_bytes):
 
         with previous_col:
 
-            if st.button(
+            st.button(
                 "◀ Previous",
-                disabled=(
-                    st.session_state.flipbook_page == 0
-                ),
+                disabled=(st.session_state.flipbook_page == 0),
                 use_container_width=True,
-                key="flipbook_previous"
-            ):
-
-                st.session_state.flipbook_page = max(
-                    0,
-                    st.session_state.flipbook_page - 1
-                )
-                st.session_state.flipbook_page_selector = (
-                    st.session_state.flipbook_page + 1
-                )
-                st.rerun()
+                key="flipbook_previous",
+                on_click=_go_to_previous_page,
+                args=(total_pages,)
+            )
 
         with page_col:
 
@@ -883,32 +890,21 @@ def render_flipbook(pdf_bytes):
                 != st.session_state.flipbook_page
             ):
 
-                st.session_state.flipbook_page = (
-                    int(selected_page) - 1
-                )
-                st.session_state.flipbook_page_selector = int(selected_page)
+                st.session_state.flipbook_page = int(selected_page) - 1
                 st.rerun()
 
         with next_col:
 
-            if st.button(
+            st.button(
                 "Next ▶",
                 disabled=(
-                    st.session_state.flipbook_page
-                    >= total_pages - 1
+                    st.session_state.flipbook_page >= total_pages - 1
                 ),
                 use_container_width=True,
-                key="flipbook_next"
-            ):
-
-                st.session_state.flipbook_page = min(
-                    total_pages - 1,
-                    st.session_state.flipbook_page + 1
-                )
-                st.session_state.flipbook_page_selector = (
-                    st.session_state.flipbook_page + 1
-                )
-                st.rerun()
+                key="flipbook_next",
+                on_click=_go_to_next_page,
+                args=(total_pages,)
+            )
 
         current_page_display = st.session_state.flipbook_page + 1
         st.markdown(
