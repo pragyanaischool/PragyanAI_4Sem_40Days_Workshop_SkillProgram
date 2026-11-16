@@ -671,71 +671,43 @@ with tabs[3]:
         "students usually begin in the 4th or 5th semester."
     )
 
-    if not UPCOMING_BATCH_EXCEL.exists():
-        st.error("Upcoming_Batch.xlsx not found in the assets folder.")
-    else:
-        batches = read_excel_sheet(
-            UPCOMING_BATCH_EXCEL,
-            "Upcoming Classes",
-            header=3
-        )
+    # Display only the two confirmed upcoming batches.
+    # This schedule is intentionally defined here so blank or obsolete rows
+    # in an older Excel workbook cannot create Batch 3, 4, 5 or display NaN.
+    upcoming_batches = [
+        {
+            "Batch": "Batch 1",
+            "Program": "AI Engineering Skill Program / Bootcamps",
+            "Mode": "Full-Time, Offline, On-Campus",
+            "Status": "Upcoming",
+            "Expected start": "January 2027",
+            "Student semester": "Usually 4th or 5th Semester",
+            "Registration": "Registration link will be announced."
+        },
+        {
+            "Batch": "Batch 2",
+            "Program": "AI Engineering Skill Program / Bootcamps",
+            "Mode": "Full-Time, Offline, On-Campus",
+            "Status": "Upcoming",
+            "Expected start": "August 2027",
+            "Student semester": "Usually 4th or 5th Semester",
+            "Registration": "Registration link will be announced."
+        }
+    ]
 
-        if batches is None or batches.empty:
-            st.info("Upcoming batch details are not available.")
-        else:
-            # Remove entirely blank columns/rows and normalize date display.
-            batches = batches.dropna(how="all").dropna(axis=1, how="all")
-            if "Batch Start Date" in batches.columns:
-                batches["Batch Start Date"] = batches["Batch Start Date"].apply(
-                    lambda value: (
-                        value.strftime("%d %b %Y")
-                        if hasattr(value, "strftime")
-                        else ("" if value is None else str(value))
-                    )
-                )
+    st.subheader("Batch Schedule")
 
-            st.dataframe(
-                batches,
-                use_container_width=True,
-                hide_index=True
-            )
-
-            st.subheader("Batch Schedule")
-            batch_columns = st.columns(min(len(batches), 2))
-            for index, (_, batch) in enumerate(batches.iterrows()):
-                with batch_columns[index % len(batch_columns)]:
-                    batch_name = batch.get("Batch Name", f"Batch {index + 1}")
-                    with st.container(border=True):
-                        st.markdown(f"### {batch_name}")
-                        st.markdown(
-                            f"**Program:** {batch.get('Program', 'AI Engineering Program')}"
-                        )
-                        st.markdown(
-                            f"**Mode:** {batch.get('Delivery Mode', 'Fully Offline')}"
-                        )
-                        st.markdown(
-                            f"**Status:** {batch.get('Admission Status', 'Upcoming')}"
-                        )
-                        start_date = batch.get("Expected Start", batch.get("Batch Start Date"))
-                        if start_date and str(start_date).lower() != "nan":
-                            st.write(f"**Expected start:** {start_date}")
-                        student_semester = batch.get("Student Semester")
-                        if student_semester and str(student_semester).lower() != "nan":
-                            st.write(f"**Student semester:** {student_semester}")
-                        registration_details = batch.get("Registration Details")
-                        if registration_details and str(registration_details).lower() != "nan":
-                            st.caption(str(registration_details))
-                        registration_link = batch.get("Registration Link")
-                        if registration_link and str(registration_link).lower() != "nan":
-                            st.link_button(
-                                "Register for this batch",
-                                str(registration_link)
-                            )
-                        else:
-                            st.caption("Registration link will be announced.")
-                        contact = batch.get("Contact")
-                        if contact and str(contact).lower() != "nan":
-                            st.write(f"**Contact:** {contact}")
+    batch_columns = st.columns(2)
+    for index, batch in enumerate(upcoming_batches):
+        with batch_columns[index]:
+            with st.container(border=True):
+                st.markdown(f"### {batch['Batch']}")
+                st.markdown(f"**Program:** {batch['Program']}")
+                st.markdown(f"**Mode:** {batch['Mode']}")
+                st.markdown(f"**Status:** {batch['Status']}")
+                st.write(f"**Expected start:** {batch['Expected start']}")
+                st.write(f"**Student semester:** {batch['Student semester']}")
+                st.caption(batch["Registration"])
 
 
 # =========================================================
